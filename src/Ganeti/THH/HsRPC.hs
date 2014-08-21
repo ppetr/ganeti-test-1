@@ -1,4 +1,5 @@
-{-# LANGUAGE TemplateHaskell, FunctionalDependencies, FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell, FunctionalDependencies, FlexibleContexts,
+  TypeFamilies #-}
 -- {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 
 {-| Creates a client out of list of RPC server components.
@@ -38,6 +39,7 @@ import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Error
 import Control.Monad.Reader
+import Control.Monad.Trans.Control -- this is trans.control
 import Language.Haskell.TH
 import qualified Text.JSON as J
 
@@ -69,6 +71,13 @@ instance Monad RpcClientMonad where
 
 instance MonadBase IO RpcClientMonad where
   liftBase = RpcClientMonad . liftBase
+
+instance MonadBaseControl IO RpcClientMonad where
+  newtype StM RpcClientMonad b = StMRpcClientMonad
+    { runStMRpcClientMonad :: StM (ReaderT Client ResultG) b }
+  liftBaseWith f = RpcClientMonad . liftBaseWith
+                   $ \r -> f (liftM StMRpcClientMonad . r . runRpcClientMonad)
+  restoreM = RpcClientMonad . restoreM . runStMRpcClientMonad
 
 instance MonadIO RpcClientMonad where
   liftIO = RpcClientMonad . liftIO
